@@ -1672,17 +1672,293 @@ public class PDFWorker {
     }
     
     private Map<String, Object> handlePDFToWord(Path inputFile, Map<String, Object> parameters, JobStatus jobStatus) {
-        return handleOfficeConversion(inputFile, parameters, jobStatus, "docx", "PDF to Word conversion");
+        // Note: LibreOffice cannot convert PDF to Word. Using text extraction approach.
+        return handlePDFToWordWithTextExtraction(inputFile, parameters, jobStatus);
     }
     
+    /**
+     * Convert PDF to Word using text extraction and Apache POI
+     * Since LibreOffice cannot convert PDF to DOCX, we extract text and create a new DOCX
+     */
+    private Map<String, Object> handlePDFToWordWithTextExtraction(Path inputFile, Map<String, Object> parameters, JobStatus jobStatus) {
+        jobQueueService.updateProgress(jobStatus.getId(), 25, "Extracting content from PDF");
+        
+        String outputName = (String) parameters.get("outputFileName");
+        if (outputName == null) outputName = "converted_document";
+        
+        try {
+            Path outputPath = createOutputFile(outputName, "docx");
+            
+            // Extract text from PDF using PDFBox
+            try (PDDocument document = Loader.loadPDF(inputFile.toFile())) {
+                PDFTextStripper stripper = new PDFTextStripper();
+                String text = stripper.getText(document);
+                
+                jobQueueService.updateProgress(jobStatus.getId(), 50, "Creating Word document");
+                
+                // Create Word document using Apache POI
+                try (org.apache.poi.xwpf.usermodel.XWPFDocument wordDoc = 
+                        new org.apache.poi.xwpf.usermodel.XWPFDocument()) {
+                    
+                    // Split text by paragraphs and add to document
+                    String[] paragraphs = text.split("\n\n");
+                    for (String para : paragraphs) {
+                        if (!para.trim().isEmpty()) {
+                            org.apache.poi.xwpf.usermodel.XWPFParagraph p = wordDoc.createParagraph();
+                            org.apache.poi.xwpf.usermodel.XWPFRun run = p.createRun();
+                            run.setText(para.trim());
+                        }
+                    }
+                    
+                    // Save the document
+                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(outputPath.toFile())) {
+                        wordDoc.write(out);
+                    }
+                }
+            }
+            
+            jobQueueService.updateProgress(jobStatus.getId(), 90, "Finalizing");
+            
+            return Map.of(
+                "resultUrl", fileUtil.getDownloadUrl(outputPath.getFileName().toString()),
+                "converted", true,
+                "targetFormat", "docx",
+                "method", "text-extraction"
+            );
+            
+        } catch (Exception e) {
+            throw new PDFProcessingException("PDF_TO_WORD_ERROR", 
+                "Failed to convert PDF to Word: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Convert PDF to Excel by extracting tables using Tabula and Apache POI
+     * This properly extracts tabular data from PDFs
+     */
     private Map<String, Object> handlePDFToExcel(Path inputFile, Map<String, Object> parameters, JobStatus jobStatus) {
-        return handleOfficeConversion(inputFile, parameters, jobStatus, "xlsx", "PDF to Excel conversion");
+        jobQueueService.updateProgress(jobStatus.getId(), 25, "Extracting tables from PDF");
+        
+        String outputName = (String) parameters.get("outputFileName");
+        if (outputName == null) outputName = "converted_spreadsheet";
+        
+        try {
+            Path outputPath = createOutputFile(outputName, "xlsx");
+            
+            // Try to extract tables using Tabula
+            try {
+                PDDocument pdfDocument = Loader.loadPDF(inputFile.toFile());
+                technology.tabula.ObjectExtractor extractor = new technology.tabula.ObjectExtractor(pdfDocument);
+                
+                technology.tabula.extractors.SpreadsheetExtractionAlgorithm sea = 
+                    new technology.tabula.extractors.SpreadsheetExtractionAlgorithm();
+                
+                jobQueueService.updateProgress(jobStatus.getId(), 50, "Processing tables");
+                
+                // Create Excel workbook
+                try (org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = 
+                        new org.apache.poi.xssf.usermodel.XSSFWorkbook()) {
+                    
+                    int sheetNum = 1;
+                    boolean hasData = false;
+                    
+                    // Process each page using PageIterator
+                    technology.tabula.PageIterator pageIterator = extractor.extract();
+                    while (pageIterator.hasNext()) {
+                        technology.tabula.Page page = pageIterator.next();
+                        java.util.List<technology.tabula.Table> tables = sea.extract(page);
+                        
+                        for (technology.tabula.Table table : tables) {
+                            org.apache.poi.xssf.usermodel.XSSFSheet sheet = 
+                                workbook.createSheet("Table_" + sheetNum++);
+                            
+                            int rowNum = 0;
+                            for (java.util.List<technology.tabula.RectangularTextContainer> row : table.getRows()) {
+                                org.apache.poi.ss.usermodel.Row excelRow = sheet.createRow(rowNum++);
+                                int colNum = 0;
+                                for (technology.tabula.RectangularTextContainer cell : row) {
+                                    org.apache.poi.ss.usermodel.Cell excelCell = excelRow.createCell(colNum++);
+                                    excelCell.setCellValue(cell.getText());
+                                }
+                                hasData = true;
+                            }
+                            
+                            // Auto-size columns
+                            for (int i = 0; i < 20; i++) {
+                                sheet.autoSizeColumn(i);
+                            }
+                        }
+                    }
+                    
+                    extractor.close();
+                    pdfDocument.close();
+                    
+                    // If no tables found, fall back to text extraction
+                    if (!hasData) {
+                        jobQueueService.updateProgress(jobStatus.getId(), 60, "No tables found, extracting text");
+                        return handlePDFToExcelTextFallback(inputFile, outputPath, jobStatus);
+                    }
+                    
+                    // Save workbook
+                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(outputPath.toFile())) {
+                        workbook.write(out);
+                    }
+                }
+                
+            } catch (Exception tableEx) {
+                // If Tabula fails, fall back to text extraction
+                logger.warn("Table extraction failed, using text fallback: {}", tableEx.getMessage());
+                return handlePDFToExcelTextFallback(inputFile, outputPath, jobStatus);
+            }
+            
+            jobQueueService.updateProgress(jobStatus.getId(), 90, "Finalizing");
+            
+            return Map.of(
+                "resultUrl", fileUtil.getDownloadUrl(outputPath.getFileName().toString()),
+                "converted", true,
+                "targetFormat", "xlsx",
+                "method", "table-extraction"
+            );
+            
+        } catch (Exception e) {
+            throw new PDFProcessingException("PDF_TO_EXCEL_ERROR", 
+                "Failed to convert PDF to Excel: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Fallback method when table extraction fails - extracts text and puts in Excel
+     */
+    private Map<String, Object> handlePDFToExcelTextFallback(Path inputFile, Path outputPath, JobStatus jobStatus) {
+        try {
+            try (PDDocument document = Loader.loadPDF(inputFile.toFile())) {
+                PDFTextStripper stripper = new PDFTextStripper();
+                String text = stripper.getText(document);
+                
+                try (org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = 
+                        new org.apache.poi.xssf.usermodel.XSSFWorkbook()) {
+                    
+                    org.apache.poi.xssf.usermodel.XSSFSheet sheet = workbook.createSheet("Extracted Text");
+                    
+                    String[] lines = text.split("\n");
+                    int rowNum = 0;
+                    for (String line : lines) {
+                        if (!line.trim().isEmpty()) {
+                            org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowNum++);
+                            
+                            // Try to split by common delimiters (tab, multiple spaces)
+                            String[] cells = line.split("\t|\\s{2,}");
+                            int colNum = 0;
+                            for (String cellValue : cells) {
+                                if (!cellValue.trim().isEmpty()) {
+                                    org.apache.poi.ss.usermodel.Cell cell = row.createCell(colNum++);
+                                    cell.setCellValue(cellValue.trim());
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Auto-size columns
+                    for (int i = 0; i < 10; i++) {
+                        sheet.autoSizeColumn(i);
+                    }
+                    
+                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(outputPath.toFile())) {
+                        workbook.write(out);
+                    }
+                }
+            }
+            
+            jobQueueService.updateProgress(jobStatus.getId(), 90, "Finalizing");
+            
+            return Map.of(
+                "resultUrl", fileUtil.getDownloadUrl(outputPath.getFileName().toString()),
+                "converted", true,
+                "targetFormat", "xlsx",
+                "method", "text-extraction-fallback"
+            );
+            
+        } catch (Exception e) {
+            throw new PDFProcessingException("PDF_TO_EXCEL_ERROR", 
+                "Failed to convert PDF to Excel: " + e.getMessage());
+        }
     }
     
     private Map<String, Object> handlePDFToPPT(Path inputFile, Map<String, Object> parameters, JobStatus jobStatus) {
-        return handleOfficeConversion(inputFile, parameters, jobStatus, "pptx", "PDF to PowerPoint conversion");
+        // Note: LibreOffice cannot convert PDF to PPT. Using image-based approach.
+        return handlePDFToPPTWithImages(inputFile, parameters, jobStatus);
     }
     
+    /**
+     * Convert PDF to PowerPoint by converting pages to images
+     */
+    private Map<String, Object> handlePDFToPPTWithImages(Path inputFile, Map<String, Object> parameters, JobStatus jobStatus) {
+        jobQueueService.updateProgress(jobStatus.getId(), 25, "Converting PDF pages to images");
+        
+        String outputName = (String) parameters.get("outputFileName");
+        if (outputName == null) outputName = "converted_presentation";
+        
+        try {
+            Path outputPath = createOutputFile(outputName, "pptx");
+            
+            try (PDDocument document = Loader.loadPDF(inputFile.toFile());
+                 org.apache.poi.xslf.usermodel.XMLSlideShow ppt = 
+                     new org.apache.poi.xslf.usermodel.XMLSlideShow()) {
+                
+                PDFRenderer renderer = new PDFRenderer(document);
+                int totalPages = document.getNumberOfPages();
+                
+                for (int page = 0; page < totalPages; page++) {
+                    jobQueueService.updateProgress(jobStatus.getId(), 
+                        25 + (page * 60 / totalPages), 
+                        "Processing page " + (page + 1) + " of " + totalPages);
+                    
+                    // Render page to image
+                    BufferedImage image = renderer.renderImageWithDPI(page, 150);
+                    
+                    // Create slide
+                    org.apache.poi.xslf.usermodel.XSLFSlide slide = ppt.createSlide();
+                    
+                    // Save image temporarily
+                    Path tempImage = Files.createTempFile("slide_" + page, ".png");
+                    ImageIO.write(image, "PNG", tempImage.toFile());
+                    
+                    // Add image to slide
+                    byte[] imageBytes = Files.readAllBytes(tempImage);
+                    org.apache.poi.xslf.usermodel.XSLFPictureData pictureData = 
+                        ppt.addPicture(imageBytes, org.apache.poi.sl.usermodel.PictureData.PictureType.PNG);
+                    
+                    org.apache.poi.xslf.usermodel.XSLFPictureShape pic = slide.createPicture(pictureData);
+                    
+                    // Set picture to fill the slide
+                    java.awt.Dimension pageSize = ppt.getPageSize();
+                    pic.setAnchor(new java.awt.Rectangle(0, 0, pageSize.width, pageSize.height));
+                    
+                    // Clean up temp image
+                    Files.deleteIfExists(tempImage);
+                }
+                
+                // Save presentation
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(outputPath.toFile())) {
+                    ppt.write(out);
+                }
+            }
+            
+            jobQueueService.updateProgress(jobStatus.getId(), 90, "Finalizing");
+            
+            return Map.of(
+                "resultUrl", fileUtil.getDownloadUrl(outputPath.getFileName().toString()),
+                "converted", true,
+                "targetFormat", "pptx",
+                "method", "image-conversion"
+            );
+            
+        } catch (Exception e) {
+            throw new PDFProcessingException("PDF_TO_PPT_ERROR", 
+                "Failed to convert PDF to PowerPoint: " + e.getMessage());
+        }
+    }
+
     private Map<String, Object> handleWordToPDF(Path inputFile, Map<String, Object> parameters, JobStatus jobStatus) {
         return handleOfficeConversion(inputFile, parameters, jobStatus, "pdf", "Word to PDF conversion");
     }
