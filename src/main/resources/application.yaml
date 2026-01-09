@@ -13,18 +13,15 @@ spring:
   # Database Configuration
   datasource:
     url: ${DB_URL:jdbc:h2:file:./data/pdfprocessingdb}
-    driver-class-name: ${DB_DRIVER:org.h2.Driver}
-    username: ${DB_USERNAME:sa}
-    password: ${DB_PASSWORD:}
-    h2:
-      database: pdfprocessingdb
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
+    username: ${DB_USERNAME:pdfuser}
+    password: ${DB_PASSWORD:pdfpassword123}
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
         format_sql: true
         jdbc:
           batch_size: 20
@@ -32,10 +29,10 @@ spring:
           order_updates: true
     open-in-view: false
   
-  # H2 Console (dev only)
+  # H2 Console (dev only - disabled in prod)
   h2:
     console:
-      enabled: true
+      enabled: ${H2_CONSOLE_ENABLED:false}
       path: /h2-console
   
   # File Upload Configuration
