@@ -33,11 +33,11 @@ RUN ./gradlew bootJar --no-daemon -x test
 # Runtime stage
 FROM eclipse-temurin:21-jre-jammy
 
-# Cache buster - change this value to force fresh install
-ARG CACHE_BUST=20260109v2
-
+# FORCE REBUILD 2026-01-09 v3 - LibreOffice fix
 # Install runtime dependencies for LibreOffice, Tesseract, MuPDF and more
-RUN echo "Cache bust: ${CACHE_BUST}" && apt-get update && apt-get install -y --no-install-recommends \
+RUN echo "BUILD_20260109_V3_LIBREOFFICE_FIX" && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
     # LibreOffice for document conversion
     libreoffice \
     libreoffice-writer \
