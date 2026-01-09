@@ -7,9 +7,10 @@ services:
     ports:
       - "${SERVER_PORT:-8080}:8080"
     environment:
-      # Database
+      # Database - PostgreSQL in Docker Compose
       - DB_URL=jdbc:postgresql://postgres:5432/pdfprocessing
       - DB_DRIVER=org.postgresql.Driver
+      - DB_DIALECT=org.hibernate.dialect.PostgreSQLDialect
       - DB_USERNAME=${DB_USERNAME:-pdfuser}
       - DB_PASSWORD=${DB_PASSWORD:-pdfpassword123}
       # Security

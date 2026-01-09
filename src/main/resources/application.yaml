@@ -11,15 +11,18 @@ spring:
     name: pdf-processing-platform-enterprise
   
   # Database Configuration
+  # For cloud deployment: set DB_URL, DB_USERNAME, DB_PASSWORD environment variables
+  # For local development: uses embedded H2 by default
   datasource:
-    url: ${DB_URL:jdbc:h2:file:./data/pdfprocessingdb}
-    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
-    username: ${DB_USERNAME:pdfuser}
-    password: ${DB_PASSWORD:pdfpassword123}
+    url: ${DB_URL:jdbc:h2:mem:pdfprocessingdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+    driver-class-name: ${DB_DRIVER:org.h2.Driver}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:}
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: false
+    database-platform: ${DB_DIALECT:org.hibernate.dialect.H2Dialect}
     properties:
       hibernate:
         format_sql: true
