@@ -38,6 +38,7 @@ out/
 ### Environment Files ###
 .env.local
 *.local
+.env
 
 ### Application Data ###
 temp/
