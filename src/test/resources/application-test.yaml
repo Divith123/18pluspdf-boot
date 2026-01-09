@@ -1,0 +1,47 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: eighteenpluspdf-test
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+  h2:
+    console:
+      enabled: false
+
+app:
+  file-storage:
+    temp-dir: ./temp-test
+    output-dir: ./output-test
+    allowed-extensions: ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.bmp,.tiff,.txt"
+    max-file-size: 104857600
+  processing:
+    max-pages: 100
+    default-dpi: 150
+    thread-pool-size: 2
+    ocr-dpi: 300
+  security:
+    api-key: test-api-key-12345
+    jwt-secret: test-secret-key-for-jwt-testing-purposes-only-12345678
+
+logging:
+  level:
+    root: WARN
+    com.chnindia.eighteenpluspdf: INFO

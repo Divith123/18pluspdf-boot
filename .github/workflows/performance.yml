@@ -1,0 +1,240 @@
+name: Performance Monitoring
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Test duration in seconds'
+        required: false
+        default: '60'
+        type: string
+      concurrent_users:
+        description: 'Number of concurrent users'
+        required: false
+        default: '10'
+        type: string
+
+jobs:
+  performance-test:
+    name: Performance Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libreoffice \
+            tesseract-ocr \
+            tesseract-ocr-eng \
+            mupdf-tools
+      
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: performance/package-lock.json
+      
+      - name: Install Node.js dependencies
+        run: |
+          cd performance
+          npm install
+          cd ..
+      
+      - name: Generate test fixtures
+        run: |
+          cd src/test/resources/fixtures
+          pip3 install reportlab
+          python3 generate_test_pdfs.py
+          cd ../../../..
+      
+      - name: Start application
+        run: |
+          ./gradlew bootRun &
+          APP_PID=$!
+          echo "APP_PID=$APP_PID" >> $GITHUB_ENV
+          timeout 60 bash -c 'until curl -s http://localhost:8080/actuator/health > /dev/null; do sleep 2; done'
+      
+      - name: Run benchmark script
+        run: |
+          cd performance
+          chmod +x benchmark.sh
+          ./benchmark.sh
+          cd ..
+      
+      - name: Run load test
+        run: |
+          cd performance
+          node load_test.js ${{ github.event.inputs.concurrent_users || '10' }} ${{ github.event.inputs.duration || '60' }}
+          cd ..
+      
+      - name: Stop application
+        if: always()
+        run: |
+          if [ ! -z "$APP_PID" ]; then
+            kill $APP_PID || true
+          fi
+      
+      - name: Generate performance report
+        run: |
+          cd performance
+          cat > results/performance_summary.md << 'EOF'
+          # Performance Report
+          
+          ## Test Configuration
+          - Date: $(date)
+          - Concurrent Users: ${{ github.event.inputs.concurrent_users || '10' }}
+          - Duration: ${{ github.event.inputs.duration || '60' }}s
+          - Branch: ${{ github.ref }}
+          
+          ## Benchmark Results
+          $(cat results/benchmark.csv | tail -n +2 | awk -F',' '{
+            sum+=$3; count++
+          } END {
+            printf("Average Processing Time: %.2f ms\n", sum/count)
+          }')
+          
+          ## Load Test Results
+          $(cat results/load_test_report.md | grep -A 20 "## Summary")
+          
+          ## Recommendations
+          $(if [ -f results/load_test_report.md ]; then
+            grep -A 5 "## Recommendations" results/load_test_report.md || echo "See detailed report"
+          fi)
+          EOF
+          cd ..
+      
+      - name: Upload performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results-${{ github.run_number }}
+          path: performance/results/
+          retention-days: 30
+      
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'performance/results/performance_summary.md';
+            if (fs.existsSync(path)) {
+              const content = fs.readFileSync(path, 'utf8');
+              console.log('Performance Summary:');
+              console.log(content);
+            }
+      
+      - name: Check performance regression
+        run: |
+          # This would compare with previous results
+          # For now, just log the results
+          echo "Performance test completed"
+          echo "Results available in artifacts"
+
+  performance-alert:
+    name: Performance Alert
+    runs-on: ubuntu-latest
+    needs: performance-test
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    
+    steps:
+      - name: Download previous results
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-results-${{ github.run_number }}
+          path: current-results
+      
+      - name: Analyze performance trends
+        run: |
+          # This would compare with baseline
+          echo "Analyzing performance trends..."
+          
+          if [ -f "current-results/benchmark.csv" ]; then
+            avg_time=$(awk -F',' 'NR>1 {sum+=$3; count++} END {printf "%.2f", sum/count}' current-results/benchmark.csv)
+            echo "Average processing time: ${avg_time}ms"
+            
+            # Alert if average time exceeds threshold (e.g., 15 seconds)
+            if (( $(echo "$avg_time > 15000" | bc -l) )); then
+              echo "::warning::Performance degradation detected: ${avg_time}ms average"
+              echo "PERFORMANCE_DEGRADATION=true" >> $GITHUB_ENV
+            fi
+          fi
+      
+      - name: Send Slack notification
+        if: env.PERFORMANCE_DEGRADATION == 'true'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#performance-alerts'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          text: |
+            🚨 Performance Alert
+            Average processing time exceeded threshold
+            Check artifacts for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      
+      - name: Create issue for performance degradation
+        if: env.PERFORMANCE_DEGRADATION == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Performance Degradation Detected',
+              body: `Performance monitoring detected degradation in processing times.
+
+              **Details:**
+              - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              - Date: ${new Date().toISOString()}
+              - Branch: ${{ github.ref }}
+
+              Please investigate and optimize as needed.`,
+              labels: ['performance', 'bug', 'needs-investigation']
+            });
+
+  generate-baseline:
+    name: Generate Baseline
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.generate_baseline == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run performance test
+        run: |
+          echo "Generating performance baseline..."
+          # Run tests and save as baseline
+          cd performance
+          chmod +x benchmark.sh
+          ./benchmark.sh
+          cd ..
+      
+      - name: Upload baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-baseline
+          path: performance/results/
+          retention-days: 90
+      
+      - name: Commit baseline
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add performance/baseline/
+          git commit -m "Update performance baseline" || echo "No changes to commit"
+          git push

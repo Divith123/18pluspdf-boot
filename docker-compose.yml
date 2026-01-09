@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  pdf-processing:
+    build: .
+    container_name: pdf-processing-platform
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    environment:
+      # Database
+      - DB_URL=jdbc:postgresql://postgres:5432/pdfprocessing
+      - DB_DRIVER=org.postgresql.Driver
+      - DB_USERNAME=${DB_USERNAME:-pdfuser}
+      - DB_PASSWORD=${DB_PASSWORD:-pdfpassword123}
+      # Security
+      - JWT_SECRET=${JWT_SECRET:-change-this-jwt-secret-in-production-256-bits-minimum}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
+      - API_KEYS=${API_KEYS:-demo-api-key-12345,admin-api-key-67890}
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-100}
+      # External tools (pre-installed in container)
+      - LIBREOFFICE_PATH=/usr/bin/soffice
+      - TESSERACT_PATH=/usr/bin/tesseract
+      - TESSERACT_DATA_PATH=/usr/share/tesseract-ocr/5/tessdata
+      - MUPDF_PATH=/usr/bin/mutool
+      # Storage
+      - TEMP_DIR=/app/temp
+      - OUTPUT_DIR=/app/output
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-500MB}
+      # Job processing
+      - JOB_MAX_CONCURRENT=${JOB_MAX_CONCURRENT:-50}
+      - JOB_TIMEOUT_MINUTES=${JOB_TIMEOUT_MINUTES:-30}
+      # OCR
+      - OCR_DEFAULT_LANGUAGE=${OCR_DEFAULT_LANGUAGE:-eng}
+      - OCR_DPI=${OCR_DPI:-300}
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Features
+      - ENABLE_OCR=${ENABLE_OCR:-true}
+      - ENABLE_CONVERSION=${ENABLE_CONVERSION:-true}
+      - ENABLE_BATCH_PROCESSING=${ENABLE_BATCH_PROCESSING:-true}
+      # Java
+      - JAVA_OPTS=-Xmx2g -Xms512m -XX:+UseG1GC
+    volumes:
+      - pdf-temp:/app/temp
+      - pdf-logs:/app/logs
+      - pdf-data:/app/data
+      - pdf-output:/app/output
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: pdf-db
+    environment:
+      - POSTGRES_DB=pdfprocessing
+      - POSTGRES_USER=${DB_USERNAME:-pdfuser}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-pdfpassword123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pdfuser -d pdfprocessing"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  pdf-temp:
+  pdf-logs:
+  pdf-data:
+  pdf-output:

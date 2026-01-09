@@ -1,0 +1,197 @@
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /api
+  error:
+    include-message: always
+    include-binding-errors: always
+
+spring:
+  application:
+    name: pdf-processing-platform-enterprise
+  
+  # Database Configuration
+  datasource:
+    url: ${DB_URL:jdbc:h2:file:./data/pdfprocessingdb}
+    driver-class-name: ${DB_DRIVER:org.h2.Driver}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:}
+    h2:
+      database: pdfprocessingdb
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
+        jdbc:
+          batch_size: 20
+          order_inserts: true
+          order_updates: true
+    open-in-view: false
+  
+  # H2 Console (dev only)
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  
+  # File Upload Configuration
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:500MB}
+      max-request-size: ${MAX_REQUEST_SIZE:500MB}
+      enabled: true
+  
+  # Task Execution
+  task:
+    execution:
+      thread-name-prefix: pdf-task-
+      pool:
+        core-size: 16
+        max-size: 64
+        queue-capacity: 2000
+        keep-alive: 60s
+    scheduling:
+      thread-name-prefix: pdf-schedule-
+      pool:
+        size: 8
+  
+  # WebFlux for reactive operations
+  webflux:
+    base-path: /api
+
+# OpenAPI Documentation
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+
+# Application Configuration
+app:
+  # Application Info
+  name: PDF Processing Platform Enterprise
+  version: 1.0.0
+  description: Enterprise-grade PDF processing backend with 32 tools
+  
+  # File Storage
+  file-storage:
+    temp-dir: ${TEMP_DIR:./temp}
+    output-dir: ${OUTPUT_DIR:./data/output}
+    max-file-size: ${MAX_FILE_SIZE:500MB}
+    max-request-size: ${MAX_REQUEST_SIZE:500MB}
+    allowed-extensions: .pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.bmp,.tiff,.txt,.rtf,.odt,.ods,.odp
+    cleanup-interval-minutes: ${CLEANUP_INTERVAL_MINUTES:30}
+    retention-days: ${RETENTION_DAYS:7}
+  
+  # External Tools Paths (Docker paths by default)
+  external-tools:
+    libreoffice-path: ${LIBREOFFICE_PATH:/usr/bin/soffice}
+    tesseract-path: ${TESSERACT_PATH:/usr/bin/tesseract}
+    tesseract-data-path: ${TESSERACT_DATA_PATH:/usr/share/tesseract-ocr/5/tessdata}
+    mupdf-path: ${MUPDF_PATH:/usr/bin/mutool}
+  
+  # Job Queue Configuration
+  job-queue:
+    max-retries: ${JOB_MAX_RETRIES:3}
+    retry-delay-ms: ${JOB_RETRY_DELAY_MS:5000}
+    timeout-minutes: ${JOB_TIMEOUT_MINUTES:30}
+    cleanup-days: ${JOB_CLEANUP_DAYS:7}
+    batch-size: ${JOB_BATCH_SIZE:10}
+    max-concurrent-jobs: ${JOB_MAX_CONCURRENT:50}
+  
+  # Security Configuration
+  security:
+    api-key-enabled: ${API_KEY_ENABLED:true}
+    jwt-enabled: ${JWT_ENABLED:true}
+    jwt-secret: ${JWT_SECRET:your-super-secret-jwt-key-change-in-production-256-bits-minimum}
+    jwt-expiration: ${JWT_EXPIRATION:86400000}
+    api-keys: ${API_KEYS:demo-api-key-12345,production-api-key-67890}
+    rate-limit-enabled: ${RATE_LIMIT_ENABLED:true}
+    rate-limit-per-minute: ${RATE_LIMIT_PER_MINUTE:100}
+  
+  # OCR Configuration
+  ocr:
+    default-language: ${OCR_DEFAULT_LANGUAGE:eng}
+    supported-languages: [eng, spa, fra, deu, ita, por, rus, chi_sim, chi_tra, jpn, kor, ara, hin, tur, pol, nld, swe, nor, dan, fin, ces, slk, hun, ron, bul, hrv, srp, mkd, est, lav, lit, ukr, bel, kaz, uzb, kir, tgl, tha, vie, ind, may, ind, jav, sun, mya, lao, khm, my, eth, som, amh, tir, yor, ibo, zul, xho, afr, nbl, sot, tsn, her, hau, ful, wol, som, swa, lug, kin, run, lin, kon, kik, nyu, bem, loz, tsonga, tsw, nde, sna, zai, mlg, mal, kan, tel, tam, sin, nep, bod, uig, kur, prs, pus, snd, bal, orm, gur, ful, wol, som, hau, ibo, yor, zul, xho, afr, nbl, sot, tsn, her, hau, ful, wol, som, swa, lug, kin, run, lin, kon, kik, nyu, bem, loz, tsonga, tsw, nde, sna, zai, mlg, mal, kan, tel, tam, sin, nep, bod, uig, kur, prs, pus, snd, bal, orm, gur]
+    dpi: ${OCR_DPI:300}
+    engine: tesseract
+    timeout-seconds: ${OCR_TIMEOUT_SECONDS:60}
+  
+  # PDF Processing Configuration
+  pdf:
+    max-pages: ${PDF_MAX_PAGES:2000}
+    max-file-size-mb: ${PDF_MAX_FILE_SIZE_MB:500}
+    compression-quality: ${PDF_COMPRESSION_QUALITY:0.85}
+    image-dpi: ${PDF_IMAGE_DPI:300}
+    preview-dpi: ${PDF_PREVIEW_DPI:150}
+    max-image-width: 4000
+    max-image-height: 4000
+    allowed-operations: ["merge", "split", "compress", "rotate", "watermark", "encrypt", "decrypt", "extract-text", "extract-images", "extract-metadata", "add-page-numbers", "remove-pages", "crop-pages", "resize-pages", "pdf-to-image", "image-to-pdf", "pdf-to-text", "text-to-pdf", "pdf-to-word", "pdf-to-excel", "pdf-to-ppt", "word-to-pdf", "excel-to-pdf", "ppt-to-pdf", "html-to-pdf", "markdown-to-pdf", "txt-to-pdf", "ocr-pdf", "compare-pdfs", "pdfa-convert", "linearize", "optimize", "metadata-edit"]
+  
+  # Performance Tuning
+  performance:
+    thread-pool-size: ${THREAD_POOL_SIZE:32}
+    connection-timeout: ${CONNECTION_TIMEOUT:30000}
+    read-timeout: ${READ_TIMEOUT:300000}
+    write-timeout: ${WRITE_TIMEOUT:30000}
+    max-connections-per-route: ${MAX_CONNECTIONS_PER_ROUTE:20}
+    max-total-connections: ${MAX_TOTAL_CONNECTIONS:100}
+  
+  # Monitoring
+  monitoring:
+    enabled: ${MONITORING_ENABLED:true}
+    metrics-endpoint: /actuator/metrics
+    health-endpoint: /actuator/health
+    info-endpoint: /actuator/info
+  
+  # Logging Configuration
+  logging:
+    level:
+      com.chnindia.eighteenpluspdf: ${LOG_LEVEL:DEBUG}
+      org.springframework.security: WARN
+      org.hibernate.SQL: WARN
+      org.hibernate.type.descriptor.sql.BasicBinder: WARN
+      org.springframework.web: INFO
+      org.springframework.boot.actuate.audit: INFO
+    file:
+      name: ${LOG_FILE:./logs/pdf-processing-enterprise.log}
+      max-size: ${LOG_MAX_SIZE:50MB}
+      max-history: ${LOG_MAX_HISTORY:30}
+    pattern:
+      console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+      file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  
+  # Feature Flags
+  features:
+    enable-ocr: ${ENABLE_OCR:true}
+    enable-conversion: ${ENABLE_CONVERSION:true}
+    enable-comparison: ${ENABLE_COMPARISON:true}
+    enable-encryption: ${ENABLE_ENCRYPTION:true}
+    enable-watermark: ${ENABLE_WATERMARK:true}
+    enable-batch-processing: ${ENABLE_BATCH_PROCESSING:true}
+    enable-webhook-callbacks: ${ENABLE_WEBHOOK_CALLBACKS:true}
+    enable-statistics: ${ENABLE_STATISTICS:true}
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+

@@ -1,0 +1,19 @@
+{
+  "name": "pdf-processing-load-test",
+  "version": "1.0.0",
+  "description": "Load testing for PDF Processing Platform",
+  "main": "load_test.js",
+  "scripts": {
+    "test": "node load_test.js 5 30",
+    "benchmark": "node load_test.js 10 60",
+    "stress": "node load_test.js 20 120",
+    "install-deps": "npm install axios form-data"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "form-data": "^4.0.0"
+  },
+  "keywords": ["pdf", "load-test", "performance", "benchmark"],
+  "author": "CHN India PDF Service",
+  "license": "MIT"
+}
