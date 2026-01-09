@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -244,6 +245,7 @@ public class JobQueueService {
     /**
      * Clean up old completed jobs
      */
+    @Transactional
     public void cleanupOldJobs(int days) {
         LocalDateTime cutoff = LocalDateTime.now().minusDays(days);
         int deleted = jobRepository.cleanupOldJobs(cutoff);
@@ -260,6 +262,7 @@ public class JobQueueService {
     /**
      * Update job progress
      */
+    @Transactional
     public void updateProgress(String jobId, int progress, String operation) {
         jobRepository.updateProgress(jobId, progress, operation);
     }
