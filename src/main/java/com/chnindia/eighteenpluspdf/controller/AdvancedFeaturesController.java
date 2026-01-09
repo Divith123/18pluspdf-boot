@@ -24,7 +24,7 @@ import java.util.*;
  * Provides endpoints for forms, annotations, AI analysis, bookmarks, webhooks, and validation.
  */
 @RestController
-@RequestMapping("/api/pdf/advanced")
+@RequestMapping("/pdf/advanced")
 public class AdvancedFeaturesController {
     
     private static final Logger logger = LoggerFactory.getLogger(AdvancedFeaturesController.class);

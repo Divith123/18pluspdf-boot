@@ -21,7 +21,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 @RestController
-@RequestMapping("/api/pdf")
+@RequestMapping("/pdf")
 @Tag(name = "File Download", description = "Download processed PDF files")
 public class FileDownloadController {
     

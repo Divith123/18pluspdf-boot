@@ -19,7 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/pdf")
+@RequestMapping("/pdf")
 @Tag(name = "PDF Processing", description = "Complete PDF processing API with 32 tools")
 public class PDFProcessingController {
     
@@ -596,6 +596,165 @@ public class PDFProcessingController {
         jobRequest.setParameters(Map.of(
             "pageRange", pageRange,
             "outputFileName", outputFileName
+        ));
+        
+        var response = jobQueueService.submitJob(jobRequest);
+        return ResponseEntity.accepted().body(new PDFProcessingResponse(response));
+    }
+    
+    @PostMapping("/pdf-to-word")
+    @Operation(summary = "PDF to Word", description = "Convert PDF to Word document (DOCX)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "202", description = "Job accepted and queued"),
+        @ApiResponse(responseCode = "400", description = "Invalid request parameters")
+    })
+    public ResponseEntity<PDFProcessingResponse> pdfToWord(
+            @Parameter(description = "PDF file", required = true)
+            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "Page range")
+            @RequestParam(defaultValue = "all") String pageRange,
+            @Parameter(description = "Output filename")
+            @RequestParam(required = false) String outputFileName) {
+        
+        ValidationUtil.validateFileNotNull(file, "file");
+        
+        com.chnindia.eighteenpluspdf.dto.JobRequest jobRequest = new com.chnindia.eighteenpluspdf.dto.JobRequest();
+        jobRequest.setToolName("pdf-to-word");
+        jobRequest.setFile(file);
+        jobRequest.setParameters(Map.of(
+            "pageRange", pageRange,
+            "outputFileName", outputFileName != null ? outputFileName : "converted"
+        ));
+        
+        var response = jobQueueService.submitJob(jobRequest);
+        return ResponseEntity.accepted().body(new PDFProcessingResponse(response));
+    }
+    
+    @PostMapping("/pdf-to-excel")
+    @Operation(summary = "PDF to Excel", description = "Convert PDF tables to Excel spreadsheet (XLSX)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "202", description = "Job accepted and queued"),
+        @ApiResponse(responseCode = "400", description = "Invalid request parameters")
+    })
+    public ResponseEntity<PDFProcessingResponse> pdfToExcel(
+            @Parameter(description = "PDF file", required = true)
+            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "Page range")
+            @RequestParam(defaultValue = "all") String pageRange,
+            @Parameter(description = "Output filename")
+            @RequestParam(required = false) String outputFileName) {
+        
+        ValidationUtil.validateFileNotNull(file, "file");
+        
+        com.chnindia.eighteenpluspdf.dto.JobRequest jobRequest = new com.chnindia.eighteenpluspdf.dto.JobRequest();
+        jobRequest.setToolName("pdf-to-excel");
+        jobRequest.setFile(file);
+        jobRequest.setParameters(Map.of(
+            "pageRange", pageRange,
+            "outputFileName", outputFileName != null ? outputFileName : "converted"
+        ));
+        
+        var response = jobQueueService.submitJob(jobRequest);
+        return ResponseEntity.accepted().body(new PDFProcessingResponse(response));
+    }
+    
+    @PostMapping("/pdf-to-ppt")
+    @Operation(summary = "PDF to PowerPoint", description = "Convert PDF to PowerPoint presentation (PPTX)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "202", description = "Job accepted and queued"),
+        @ApiResponse(responseCode = "400", description = "Invalid request parameters")
+    })
+    public ResponseEntity<PDFProcessingResponse> pdfToPowerPoint(
+            @Parameter(description = "PDF file", required = true)
+            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "Page range")
+            @RequestParam(defaultValue = "all") String pageRange,
+            @Parameter(description = "Output filename")
+            @RequestParam(required = false) String outputFileName) {
+        
+        ValidationUtil.validateFileNotNull(file, "file");
+        
+        com.chnindia.eighteenpluspdf.dto.JobRequest jobRequest = new com.chnindia.eighteenpluspdf.dto.JobRequest();
+        jobRequest.setToolName("pdf-to-ppt");
+        jobRequest.setFile(file);
+        jobRequest.setParameters(Map.of(
+            "pageRange", pageRange,
+            "outputFileName", outputFileName != null ? outputFileName : "converted"
+        ));
+        
+        var response = jobQueueService.submitJob(jobRequest);
+        return ResponseEntity.accepted().body(new PDFProcessingResponse(response));
+    }
+    
+    @PostMapping("/word-to-pdf")
+    @Operation(summary = "Word to PDF", description = "Convert Word document to PDF")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "202", description = "Job accepted and queued"),
+        @ApiResponse(responseCode = "400", description = "Invalid request parameters")
+    })
+    public ResponseEntity<PDFProcessingResponse> wordToPdf(
+            @Parameter(description = "Word file (DOC/DOCX)", required = true)
+            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "Output filename")
+            @RequestParam(required = false) String outputFileName) {
+        
+        ValidationUtil.validateFileNotNull(file, "file");
+        
+        com.chnindia.eighteenpluspdf.dto.JobRequest jobRequest = new com.chnindia.eighteenpluspdf.dto.JobRequest();
+        jobRequest.setToolName("word-to-pdf");
+        jobRequest.setFile(file);
+        jobRequest.setParameters(Map.of(
+            "outputFileName", outputFileName != null ? outputFileName : "converted"
+        ));
+        
+        var response = jobQueueService.submitJob(jobRequest);
+        return ResponseEntity.accepted().body(new PDFProcessingResponse(response));
+    }
+    
+    @PostMapping("/excel-to-pdf")
+    @Operation(summary = "Excel to PDF", description = "Convert Excel spreadsheet to PDF")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "202", description = "Job accepted and queued"),
+        @ApiResponse(responseCode = "400", description = "Invalid request parameters")
+    })
+    public ResponseEntity<PDFProcessingResponse> excelToPdf(
+            @Parameter(description = "Excel file (XLS/XLSX)", required = true)
+            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "Output filename")
+            @RequestParam(required = false) String outputFileName) {
+        
+        ValidationUtil.validateFileNotNull(file, "file");
+        
+        com.chnindia.eighteenpluspdf.dto.JobRequest jobRequest = new com.chnindia.eighteenpluspdf.dto.JobRequest();
+        jobRequest.setToolName("excel-to-pdf");
+        jobRequest.setFile(file);
+        jobRequest.setParameters(Map.of(
+            "outputFileName", outputFileName != null ? outputFileName : "converted"
+        ));
+        
+        var response = jobQueueService.submitJob(jobRequest);
+        return ResponseEntity.accepted().body(new PDFProcessingResponse(response));
+    }
+    
+    @PostMapping("/ppt-to-pdf")
+    @Operation(summary = "PowerPoint to PDF", description = "Convert PowerPoint presentation to PDF")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "202", description = "Job accepted and queued"),
+        @ApiResponse(responseCode = "400", description = "Invalid request parameters")
+    })
+    public ResponseEntity<PDFProcessingResponse> pptToPdf(
+            @Parameter(description = "PowerPoint file (PPT/PPTX)", required = true)
+            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "Output filename")
+            @RequestParam(required = false) String outputFileName) {
+        
+        ValidationUtil.validateFileNotNull(file, "file");
+        
+        com.chnindia.eighteenpluspdf.dto.JobRequest jobRequest = new com.chnindia.eighteenpluspdf.dto.JobRequest();
+        jobRequest.setToolName("ppt-to-pdf");
+        jobRequest.setFile(file);
+        jobRequest.setParameters(Map.of(
+            "outputFileName", outputFileName != null ? outputFileName : "converted"
         ));
         
         var response = jobQueueService.submitJob(jobRequest);
