@@ -108,8 +108,8 @@ dependencies {
     // Environment Configuration
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'
     
-    // OpenAPI/Swagger
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+    // OpenAPI/Swagger - Compatible with Spring Boot 3.5.x
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
     
     // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
